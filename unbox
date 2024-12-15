@@ -1,0 +1,30 @@
+#!/bin/bash
+
+
+set -ueo pipefail
+
+if [ "$#" -ne 1 ]; then
+    echo "usage: $0 <path>" >&2
+    exit 1
+fi
+
+short_hash() {
+    shasum <<<"$1" | cut -d ' ' -f 1 | xxd -r -p | base32 | tr '[:upper:]' '[:lower:]' | head -c 8
+}
+
+src="$(readlink -f -- "$1")"
+name="$(basename -- "$src")"
+hash="$(short_hash "$src")"
+dest="/var/run/user/$UID/unbox/$name-$hash"
+
+if ! [ -d "$dest" ]; then
+    echo "creating mount destination in '$dest'" >&2
+    mkdir -p -- "$dest" 1>&2
+fi
+
+if (find -L -- "$dest" -maxdepth 0 -type d -empty | grep -q .); then
+    echo "mounting encrypted directory" >&2
+    gocryptfs -- "$src" "$dest" 1>&2
+fi
+
+printf "%s\n" "$dest"
